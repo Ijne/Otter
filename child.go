@@ -70,14 +70,6 @@ func Child(fdCHW []int32, fdPW []int32) {
 		0,
 	)
 
-	oldRootPath, _ = syscall.BytePtrFromString("/oldroot")
-	syscall.Syscall(
-		syscall.SYS_UMOUNT2,
-		uintptr(unsafe.Pointer(oldRootPath)),
-		uintptr(syscall.MNT_DETACH),
-		0,
-	)
-
 	source, _ := syscall.BytePtrFromString("proc")
 	target, _ := syscall.BytePtrFromString("/proc")
 	fstype, _ := syscall.BytePtrFromString("proc")
@@ -94,6 +86,14 @@ func Child(fdCHW []int32, fdPW []int32) {
 		fmt.Println("Error mounting proc filesystem:", errno)
 		return
 	}
+
+	oldRootPath, _ = syscall.BytePtrFromString("/oldroot")
+	syscall.Syscall(
+		syscall.SYS_UMOUNT2,
+		uintptr(unsafe.Pointer(oldRootPath)),
+		uintptr(syscall.MNT_DETACH),
+		0,
+	)
 
 	path, _ := syscall.BytePtrFromString("/bin/sh")
 	argv, _ := syscall.SlicePtrFromStrings([]string{"sh"})
