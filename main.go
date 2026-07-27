@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os/exec"
 	"syscall"
 	"unsafe"
 )
@@ -10,6 +11,9 @@ var (
 )
 
 func main() {
+	cmd := exec.Command("bash", "fsinit.sh")
+	cmd.Run()
+
 	fdCHW := make([]int32, 2)
 	_, _, errno := syscall.Syscall(
 		syscall.SYS_PIPE,
@@ -43,7 +47,7 @@ func main() {
 
 	r1, _, errno := syscall.Syscall(
 		syscall.SYS_CLONE,
-		uintptr(syscall.CLONE_NEWUSER|syscall.CLONE_NEWUTS),
+		uintptr(syscall.CLONE_NEWUSER|syscall.CLONE_NEWUTS|syscall.CLONE_NEWNS|syscall.CLONE_NEWPID),
 		0,
 		0,
 	)

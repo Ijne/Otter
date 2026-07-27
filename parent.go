@@ -54,21 +54,21 @@ func Parent(fdCHW []int32, fdPW []int32, chID uintptr) {
 	gidMapPath := "/proc/" + pidStr + "/gid_map"
 	err := writeProcFile(setgroupsPath, "deny")
 	if err != nil {
-		println("Error writing to setgroups:", err)
+		fmt.Printf("Error writing to setgroups: %v\n", err)
 		return
 	}
 
 	uid, _, _ := syscall.Syscall(syscall.SYS_GETUID, 0, 0, 0)
 	err = writeProcFile(uidMapPath, fmt.Sprintf("0 %d 1", uid))
 	if err != nil {
-		println("Error writing to uid_map:", err)
+		fmt.Printf("Error writing to uid_map: %v\n", err)
 		return
 	}
 
 	gid, _, _ := syscall.Syscall(syscall.SYS_GETGID, 0, 0, 0)
 	err = writeProcFile(gidMapPath, fmt.Sprintf("0 %d 1", gid))
 	if err != nil {
-		println("Error writing to gid_map:", err)
+		fmt.Printf("Error writing to gid_map: %v\n", err)
 		return
 	}
 
@@ -105,9 +105,12 @@ func Parent(fdCHW []int32, fdPW []int32, chID uintptr) {
 		println("Child process finished")
 	}
 
-	syscall.Syscall(
+	syscall.Syscall6(
 		syscall.SYS_CLOSE,
 		uintptr(fdCHW[0]),
+		0,
+		0,
+		0,
 		0,
 		0,
 	)

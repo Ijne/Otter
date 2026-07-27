@@ -1,0 +1,28 @@
+	r1, _, errno := syscall.Syscall(
+		syscall.SYS_CLONE,
+		uintptr(syscall.SIGCHLD),
+		0,
+		0,
+	)
+	if errno != 0 {
+		println("Error:", errno)
+		tmp := []byte{1}
+		syscall.Syscall(
+			syscall.SYS_WRITE,
+			uintptr(fdCHW[1]),
+			uintptr(unsafe.Pointer(&tmp[0])),
+			1,
+		)
+		return
+	}
+	if r1 == 0 {
+		Grandchild()
+	} else {
+		_, _, errno := syscall.Syscall(
+			syscall.SYS_WAIT4,
+			r1,
+			0,
+			0,
+		)
+		fmt.Println("Grandchild process finished with error:", errno)
+	}
