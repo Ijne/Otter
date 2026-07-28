@@ -1,11 +1,12 @@
 package ns
 
 import (
+	"bytes"
 	"fmt"
-	"os"
 	"otter/internal/mount"
 	"otter/internal/params"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -44,12 +45,6 @@ func Start(p params.Params) *params.Result {
 		syscall.SYS_PIPE,
 		uintptr(unsafe.Pointer(&stdout[0])),
 		0,
-		0,
-	)
-	syscall.Syscall(
-		syscall.SYS_DUP2,
-		uintptr(stdout[1]),
-		uintptr(1),
 		0,
 	)
 
@@ -91,6 +86,20 @@ func childEntry(p params.Params, stdout, fdCHW, fdPW []int32) *params.Result {
 		syscall.SYS_CLOSE,
 		uintptr(fdPW[1]),
 		0,
+		0,
+	)
+
+	syscall.Syscall(
+		syscall.SYS_CLOSE,
+		uintptr(stdout[0]),
+		0,
+		0,
+	)
+
+	syscall.Syscall(
+		syscall.SYS_DUP2,
+		uintptr(stdout[1]),
+		uintptr(1),
 		0,
 	)
 
@@ -167,6 +176,13 @@ func parentEntry(p params.Params, stdout, fdCHW, fdPW []int32, chID uintptr) *pa
 		0,
 	)
 
+	syscall.Syscall(
+		syscall.SYS_CLOSE,
+		uintptr(stdout[1]),
+		0,
+		0,
+	)
+
 	pidStr := strconv.Itoa(int(chID))
 	uidMapPath := "/proc/" + pidStr + "/uid_map"
 	setgroupsPath := "/proc/" + pidStr + "/setgroups"
@@ -225,9 +241,13 @@ func parentEntry(p params.Params, stdout, fdCHW, fdPW []int32, chID uintptr) *pa
 		TimedOut: false,
 	}
 
+	var stdoutBuffer bytes.Buffer
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		f, _ := os.OpenFile("output.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		defer wg.Done()
 		for {
+			//f, _ := os.OpenFile("output.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 			buf := make([]byte, 1024)
 			n, _, _ := syscall.Syscall(
 				syscall.SYS_READ,
@@ -238,9 +258,9 @@ func parentEntry(p params.Params, stdout, fdCHW, fdPW []int32, chID uintptr) *pa
 			if n == 0 {
 				break
 			}
-			f.Write(buf[:n])
+			//f.Write(buf[:n])
+			stdoutBuffer.Write(buf[:n])
 		}
-		f.Close()
 	}()
 
 	done := make(chan struct{})
@@ -248,9 +268,9 @@ func parentEntry(p params.Params, stdout, fdCHW, fdPW []int32, chID uintptr) *pa
 	go func() {
 		var status uint32
 		syscall.Syscall(syscall.SYS_WAIT4, chID, uintptr(unsafe.Pointer(&status)), 0)
-		close(done)
 		exitCode := int((status >> 8) & 0xff)
 		result.ExitCode = exitCode
+		close(done)
 	}()
 
 	select {
@@ -265,6 +285,9 @@ func parentEntry(p params.Params, stdout, fdCHW, fdPW []int32, chID uintptr) *pa
 		<-done
 		result.TimedOut = true
 	}
+
+	wg.Wait()
+	result.Stdout = stdoutBuffer.Bytes()
 
 	syscall.Syscall6(syscall.SYS_CLOSE, uintptr(fdCHW[0]), 0, 0, 0, 0, 0)
 	return &result
