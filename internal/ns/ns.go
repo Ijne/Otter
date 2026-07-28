@@ -124,16 +124,21 @@ func childEntry(p params.Params, stdout, fdCHW, fdPW []int32) *params.Result {
 }
 
 func execInto(p params.Params) {
-	path, _ := syscall.BytePtrFromString(p.Command[0])
-	argv, _ := syscall.SlicePtrFromStrings(p.Command)
-	envp, _ := syscall.SlicePtrFromStrings(p.Env)
+	selfPathpath, _ := syscall.BytePtrFromString("/bin/self")
+	argv, _ := syscall.SlicePtrFromStrings([]string{""})
 
-	syscall.Syscall(
+	env := []string{"OTTER_REEXEC=" + p.EntryPoint}
+	envp, _ := syscall.SlicePtrFromStrings(env)
+
+	_, _, errno := syscall.Syscall(
 		syscall.SYS_EXECVE,
-		uintptr(unsafe.Pointer(path)),
+		uintptr(unsafe.Pointer(selfPathpath)),
 		uintptr(unsafe.Pointer(&argv[0])),
 		uintptr(unsafe.Pointer(&envp[0])),
 	)
+	if errno != 0 {
+		fmt.Println("Error executing program:", errno)
+	}
 }
 
 func writeProcFile(path string, value string) error {
