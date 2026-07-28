@@ -13,6 +13,7 @@ ln -s busybox cat
 ln -s busybox id
 ln -s busybox echo
 ln -s busybox clear
-
+ln -s busybox ipcs
+ln -s busybox ip
 
 

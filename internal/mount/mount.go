@@ -1,38 +1,13 @@
-package main
+package mount
 
 import (
 	"fmt"
+	"otter/internal/params"
 	"syscall"
 	"unsafe"
 )
 
-func Child(fdCHW []int32, fdPW []int32) {
-	syscall.Syscall(
-		syscall.SYS_CLOSE,
-		uintptr(fdCHW[0]),
-		0,
-		0,
-	)
-
-	syscall.Syscall(
-		syscall.SYS_CLOSE,
-		uintptr(fdPW[1]),
-		0,
-		0,
-	)
-
-	tmp := []byte{0}
-	syscall.Syscall(
-		syscall.SYS_READ,
-		uintptr(fdPW[0]),
-		uintptr(unsafe.Pointer(&tmp[0])),
-		1,
-	)
-
-	if DEBUG {
-		println("Child process received signal to start")
-	}
-
+func PivotRoot(p params.Params) {
 	targetPath, _ := syscall.BytePtrFromString("/")
 	syscall.Syscall6(
 		syscall.SYS_MOUNT,
@@ -44,7 +19,7 @@ func Child(fdCHW []int32, fdPW []int32) {
 		0,
 	)
 
-	rootFSPath, _ := syscall.BytePtrFromString("/tmp/rootfs")
+	rootFSPath, _ := syscall.BytePtrFromString(p.RootFS)
 	syscall.Syscall6(
 		syscall.SYS_MOUNT,
 		uintptr(unsafe.Pointer(rootFSPath)),
@@ -55,7 +30,7 @@ func Child(fdCHW []int32, fdPW []int32) {
 		0,
 	)
 
-	oldRootPath, _ := syscall.BytePtrFromString("/tmp/rootfs/oldroot")
+	oldRootPath, _ := syscall.BytePtrFromString(p.RootFS + "/oldroot")
 	syscall.Syscall(
 		syscall.SYS_PIVOT_ROOT,
 		uintptr(unsafe.Pointer(rootFSPath)),
@@ -69,7 +44,9 @@ func Child(fdCHW []int32, fdPW []int32) {
 		0,
 		0,
 	)
+}
 
+func MountProc() {
 	source, _ := syscall.BytePtrFromString("proc")
 	target, _ := syscall.BytePtrFromString("/proc")
 	fstype, _ := syscall.BytePtrFromString("proc")
@@ -86,23 +63,14 @@ func Child(fdCHW []int32, fdPW []int32) {
 		fmt.Println("Error mounting proc filesystem:", errno)
 		return
 	}
+}
 
-	oldRootPath, _ = syscall.BytePtrFromString("/oldroot")
+func Cleanup() {
+	oldRootPath, _ := syscall.BytePtrFromString("/oldroot")
 	syscall.Syscall(
 		syscall.SYS_UMOUNT2,
 		uintptr(unsafe.Pointer(oldRootPath)),
 		uintptr(syscall.MNT_DETACH),
 		0,
-	)
-
-	path, _ := syscall.BytePtrFromString("/bin/sh")
-	argv, _ := syscall.SlicePtrFromStrings([]string{"sh"})
-	envp, _ := syscall.SlicePtrFromStrings([]string{"PATH=/bin:usr/bin", "TERM=xterm"})
-
-	syscall.Syscall(
-		syscall.SYS_EXECVE,
-		uintptr(unsafe.Pointer(path)),
-		uintptr(unsafe.Pointer(&argv[0])),
-		uintptr(unsafe.Pointer(&envp[0])),
 	)
 }
