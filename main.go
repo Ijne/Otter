@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"otter/pkg"
 	"time"
+
+	"github.com/Ijne/Otter/sandbox"
 )
 
 func main() {
-	res := pkg.Run(pkg.Config{
+	res := sandbox.Run(sandbox.Config{
 		RootFS:      "/tmp/rootfs",
 		Command:     []string{"/bin/sh"},
 		Env:         []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},

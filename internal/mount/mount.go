@@ -2,9 +2,10 @@ package mount
 
 import (
 	"fmt"
-	"otter/internal/params"
 	"syscall"
 	"unsafe"
+
+	"github.com/Ijne/Otter/internal/params"
 )
 
 func PivotRoot(p params.Params) {

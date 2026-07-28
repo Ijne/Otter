@@ -3,13 +3,14 @@ package ns
 import (
 	"bytes"
 	"fmt"
-	"otter/internal/mount"
-	"otter/internal/params"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/Ijne/Otter/internal/mount"
+	"github.com/Ijne/Otter/internal/params"
 )
 
 func Start(p params.Params) *params.Result {
@@ -273,17 +274,21 @@ func parentEntry(p params.Params, stdout, fdCHW, fdPW []int32, chID uintptr) *pa
 		close(done)
 	}()
 
-	select {
-	case <-done:
-	case <-time.After(p.TimeLimit):
-		syscall.Syscall(
-			syscall.SYS_KILL,
-			chID,
-			uintptr(syscall.SIGKILL),
-			0,
-		)
+	if p.TimeLimit > 0 {
+		select {
+		case <-done:
+		case <-time.After(p.TimeLimit):
+			syscall.Syscall(
+				syscall.SYS_KILL,
+				chID,
+				uintptr(syscall.SIGKILL),
+				0,
+			)
+			<-done
+			result.TimedOut = true
+		}
+	} else {
 		<-done
-		result.TimedOut = true
 	}
 
 	wg.Wait()

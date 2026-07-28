@@ -1,14 +1,15 @@
-package pkg
+package sandbox
 
 import (
 	"io"
 	"net/http"
 	"os"
-	"otter/internal/ns"
-	"otter/internal/params"
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/Ijne/Otter/internal/ns"
+	"github.com/Ijne/Otter/internal/params"
 )
 
 type Config struct {
