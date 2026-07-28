@@ -2,14 +2,16 @@ package ns
 
 import (
 	"fmt"
+	"os"
 	"otter/internal/mount"
 	"otter/internal/params"
 	"strconv"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
-func Start(p params.Params) {
+func Start(p params.Params) *params.Result {
 	fdCHW := make([]int32, 2)
 	_, _, errno := syscall.Syscall(
 		syscall.SYS_PIPE,
@@ -19,7 +21,7 @@ func Start(p params.Params) {
 	)
 	if errno != 0 {
 		println("Error:", errno)
-		return
+		return nil
 	}
 
 	_, _, errno = syscall.Syscall(
@@ -36,9 +38,24 @@ func Start(p params.Params) {
 		0,
 		0,
 	)
+
+	stdout := make([]int32, 2)
+	_, _, errno = syscall.Syscall(
+		syscall.SYS_PIPE,
+		uintptr(unsafe.Pointer(&stdout[0])),
+		0,
+		0,
+	)
+	syscall.Syscall(
+		syscall.SYS_DUP2,
+		uintptr(stdout[1]),
+		uintptr(1),
+		0,
+	)
+
 	if errno != 0 {
 		println("Error:", errno)
-		return
+		return nil
 	}
 
 	r1, _, errno := syscall.Syscall(
@@ -49,17 +66,20 @@ func Start(p params.Params) {
 	)
 	if errno != 0 {
 		println("Error:", errno)
-		return
+		return nil
 	}
 
+	var result *params.Result
 	if r1 == 0 {
-		childEntry(p, fdCHW, fdPW)
+		result = childEntry(p, stdout, fdCHW, fdPW)
 	} else {
-		parentEntry(fdCHW, fdPW, r1)
+		result = parentEntry(p, stdout, fdCHW, fdPW, r1)
 	}
+	return result
+
 }
 
-func childEntry(p params.Params, fdCHW, fdPW []int32) {
+func childEntry(p params.Params, stdout, fdCHW, fdPW []int32) *params.Result {
 	syscall.Syscall(
 		syscall.SYS_CLOSE,
 		uintptr(fdCHW[0]),
@@ -89,12 +109,14 @@ func childEntry(p params.Params, fdCHW, fdPW []int32) {
 	mount.Cleanup()
 
 	execInto(p)
+
+	return nil
 }
 
 func execInto(p params.Params) {
-	path, _ := syscall.BytePtrFromString("/bin/sh")
-	argv, _ := syscall.SlicePtrFromStrings([]string{"sh"})
-	envp, _ := syscall.SlicePtrFromStrings([]string{"PATH=/bin:usr/bin", "TERM=xterm"})
+	path, _ := syscall.BytePtrFromString(p.Command[0])
+	argv, _ := syscall.SlicePtrFromStrings(p.Command)
+	envp, _ := syscall.SlicePtrFromStrings(p.Env)
 
 	syscall.Syscall(
 		syscall.SYS_EXECVE,
@@ -130,7 +152,7 @@ func writeProcFile(path string, value string) error {
 	return nil
 }
 
-func parentEntry(fdCHW, fdPW []int32, chID uintptr) {
+func parentEntry(p params.Params, stdout, fdCHW, fdPW []int32, chID uintptr) *params.Result {
 	syscall.Syscall(
 		syscall.SYS_CLOSE,
 		uintptr(fdCHW[1]),
@@ -152,22 +174,36 @@ func parentEntry(fdCHW, fdPW []int32, chID uintptr) {
 	err := writeProcFile(setgroupsPath, "deny")
 	if err != nil {
 		fmt.Printf("Error writing to setgroups: %v\n", err)
-		return
+		return nil
 	}
 
 	uid, _, _ := syscall.Syscall(syscall.SYS_GETUID, 0, 0, 0)
 	err = writeProcFile(uidMapPath, fmt.Sprintf("0 %d 1", uid))
 	if err != nil {
 		fmt.Printf("Error writing to uid_map: %v\n", err)
-		return
+		return nil
 	}
 
 	gid, _, _ := syscall.Syscall(syscall.SYS_GETGID, 0, 0, 0)
 	err = writeProcFile(gidMapPath, fmt.Sprintf("0 %d 1", gid))
 	if err != nil {
 		fmt.Printf("Error writing to gid_map: %v\n", err)
-		return
+		return nil
 	}
+
+	cgroupPath := "/sys/fs/cgroup/otter-" + pidStr
+	err = syscall.Mkdir(cgroupPath, 0755)
+	if err != nil {
+		fmt.Printf("Error creating cgroup directory: %v\n", err)
+		return nil
+	}
+	if p.MemoryLimit > 0 {
+		writeProcFile(cgroupPath+"/memory.max", fmt.Sprintf("%d", p.MemoryLimit))
+	}
+	if p.CPUQuota > 0 {
+		writeProcFile(cgroupPath+"/cpu.max", fmt.Sprintf("%d 100000", p.CPUQuota))
+	}
+	writeProcFile(cgroupPath+"/cgroup.procs", pidStr)
 
 	syscall.Syscall(
 		syscall.SYS_WRITE,
@@ -184,7 +220,52 @@ func parentEntry(fdCHW, fdPW []int32, chID uintptr) {
 		1,
 	)
 
-	syscall.Syscall(syscall.SYS_WAIT4, chID, 0, 0)
+	result := params.Result{
+		ExitCode: 0,
+		TimedOut: false,
+	}
+
+	go func() {
+		f, _ := os.OpenFile("output.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		for {
+			buf := make([]byte, 1024)
+			n, _, _ := syscall.Syscall(
+				syscall.SYS_READ,
+				uintptr(stdout[0]),
+				uintptr(unsafe.Pointer(&buf[0])),
+				uintptr(len(buf)),
+			)
+			if n == 0 {
+				break
+			}
+			f.Write(buf[:n])
+		}
+		f.Close()
+	}()
+
+	done := make(chan struct{})
+
+	go func() {
+		var status uint32
+		syscall.Syscall(syscall.SYS_WAIT4, chID, uintptr(unsafe.Pointer(&status)), 0)
+		close(done)
+		exitCode := int((status >> 8) & 0xff)
+		result.ExitCode = exitCode
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(p.TimeLimit):
+		syscall.Syscall(
+			syscall.SYS_KILL,
+			chID,
+			uintptr(syscall.SIGKILL),
+			0,
+		)
+		<-done
+		result.TimedOut = true
+	}
 
 	syscall.Syscall6(syscall.SYS_CLOSE, uintptr(fdCHW[0]), 0, 0, 0, 0, 0)
+	return &result
 }

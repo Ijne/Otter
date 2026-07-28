@@ -1,0 +1,5 @@
+bin
+dev
+oldroot
+proc
+tmp

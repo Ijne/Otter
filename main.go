@@ -5,6 +5,7 @@ import (
 	"otter/internal/ns"
 	"otter/internal/params"
 	"syscall"
+	"time"
 )
 
 var (
@@ -12,12 +13,16 @@ var (
 )
 
 func main() {
-	cmd := exec.Command("bash", "fsinit.sh")
+	config := params.Params{
+		Flags:       uintptr(syscall.CLONE_NEWUSER | syscall.CLONE_NEWUTS | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID | syscall.CLONE_NEWIPC | syscall.CLONE_NEWCGROUP | syscall.SIGCHLD),
+		RootFS:      "/tmp/otter",
+		Command:     []string{"/bin/sh"},
+		Env:         []string{"PATH=/bin:/usr/bin:/sbin:/usr/sbin"},
+		MemoryLimit: 0,
+		CPUQuota:    0,
+		TimeLimit:   5 * time.Second,
+	}
+	cmd := exec.Command("bash", "fsinit.sh", config.RootFS)
 	cmd.Run()
-	ns.Start(params.Params{
-		Flags:   uintptr(syscall.CLONE_NEWUSER | syscall.CLONE_NEWUTS | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID | syscall.CLONE_NEWIPC | syscall.CLONE_NEWCGROUP | syscall.SIGCHLD),
-		RootFS:  "/tmp/otter",
-		Command: []string{"/bin/bash"},
-		Env:     []string{"PATH=/bin:/usr/bin:/sbin:/usr/sbin"},
-	})
+	ns.Start(config)
 }

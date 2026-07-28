@@ -20,7 +20,7 @@ func PivotRoot(p params.Params) {
 	)
 
 	rootFSPath, _ := syscall.BytePtrFromString(p.RootFS)
-	syscall.Syscall6(
+	_, _, errno := syscall.Syscall6(
 		syscall.SYS_MOUNT,
 		uintptr(unsafe.Pointer(rootFSPath)),
 		uintptr(unsafe.Pointer(rootFSPath)),
@@ -29,6 +29,10 @@ func PivotRoot(p params.Params) {
 		0,
 		0,
 	)
+	if errno != 0 {
+		fmt.Println("Error mounting root filesystem:", errno)
+		return
+	}
 
 	oldRootPath, _ := syscall.BytePtrFromString(p.RootFS + "/oldroot")
 	syscall.Syscall(
