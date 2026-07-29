@@ -65,15 +65,12 @@ func init() {
 func main() {
 	sandbox.Boot() // must be the first line
 
-	res, err := sandbox.Run(sandbox.Config{
+	res := sandbox.Run(sandbox.Config{
 		EntryPoint:  "default",
 		MemoryLimit: 512 * 1024 * 1024, // 512 MB
 		CPUQuota:    50000,             // 50% of one core
 		TimeLimit:   5 * time.Second,
 	})
-	if err != nil {
-		panic(err)
-	}
 
 	fmt.Println("exit code:", res.ExitCode)
 	fmt.Println("timed out:", res.TimedOut)
