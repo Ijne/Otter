@@ -2,15 +2,24 @@ package main
 
 import (
 	"fmt"
-	"otter/pkg"
 	"time"
+
+	"github.com/Ijne/Otter/sandbox"
 )
 
+func init() {
+	sandbox.Register("default", func() {
+		fmt.Println("Hello from the default entry point!")
+		fmt.Println(1 + 2)
+	})
+}
+
 func main() {
-	res := pkg.Run(pkg.Config{
+	sandbox.Boot()
+
+	res := sandbox.Run(sandbox.Config{
+		EntryPoint:  "default",
 		RootFS:      "/tmp/rootfs",
-		Command:     []string{"/bin/sh"},
-		Env:         []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},
 		MemoryLimit: 512 * 1024 * 1024,
 		CPUQuota:    50000,
 		TimeLimit:   10 * time.Second,

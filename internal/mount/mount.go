@@ -2,14 +2,15 @@ package mount
 
 import (
 	"fmt"
-	"otter/internal/params"
 	"syscall"
 	"unsafe"
+
+	"github.com/Ijne/Otter/internal/params"
 )
 
 func PivotRoot(p params.Params) {
 	targetPath, _ := syscall.BytePtrFromString("/")
-	syscall.Syscall6(
+	_, _, errno := syscall.Syscall6(
 		syscall.SYS_MOUNT,
 		0,
 		uintptr(unsafe.Pointer(targetPath)),
@@ -18,9 +19,13 @@ func PivotRoot(p params.Params) {
 		0,
 		0,
 	)
+	if errno != 0 {
+		fmt.Println("Error mounting root filesystem:", errno)
+		return
+	}
 
 	rootFSPath, _ := syscall.BytePtrFromString(p.RootFS)
-	_, _, errno := syscall.Syscall6(
+	_, _, errno = syscall.Syscall6(
 		syscall.SYS_MOUNT,
 		uintptr(unsafe.Pointer(rootFSPath)),
 		uintptr(unsafe.Pointer(rootFSPath)),
@@ -35,12 +40,16 @@ func PivotRoot(p params.Params) {
 	}
 
 	oldRootPath, _ := syscall.BytePtrFromString(p.RootFS + "/oldroot")
-	syscall.Syscall(
+	_, _, errno = syscall.Syscall(
 		syscall.SYS_PIVOT_ROOT,
 		uintptr(unsafe.Pointer(rootFSPath)),
 		uintptr(unsafe.Pointer(oldRootPath)),
 		0,
 	)
+	if errno != 0 {
+		fmt.Println("Error pivoting root filesystem:", errno)
+		return
+	}
 
 	syscall.Syscall(
 		syscall.SYS_CHDIR,
@@ -63,18 +72,25 @@ func MountProc() {
 		0,
 		0,
 	)
+	fmt.Println("Mounting proc filesystem...")
 	if errno != 0 {
 		fmt.Println("Error mounting proc filesystem:", errno)
 		return
 	}
+	fmt.Println("Proc filesystem mounted successfully.")
 }
 
 func Cleanup() {
+	fmt.Println("Cleaning up...")
 	oldRootPath, _ := syscall.BytePtrFromString("/oldroot")
-	syscall.Syscall(
+	_, _, errno := syscall.Syscall(
 		syscall.SYS_UMOUNT2,
 		uintptr(unsafe.Pointer(oldRootPath)),
 		uintptr(syscall.MNT_DETACH),
 		0,
 	)
+	if errno != 0 {
+		fmt.Println("Error cleaning up:", errno)
+	}
+	fmt.Println("Cleanup completed successfully.")
 }
