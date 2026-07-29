@@ -72,16 +72,13 @@ func MountProc() {
 		0,
 		0,
 	)
-	fmt.Println("Mounting proc filesystem...")
 	if errno != 0 {
 		fmt.Println("Error mounting proc filesystem:", errno)
 		return
 	}
-	fmt.Println("Proc filesystem mounted successfully.")
 }
 
 func Cleanup() {
-	fmt.Println("Cleaning up...")
 	oldRootPath, _ := syscall.BytePtrFromString("/oldroot")
 	_, _, errno := syscall.Syscall(
 		syscall.SYS_UMOUNT2,
@@ -92,5 +89,4 @@ func Cleanup() {
 	if errno != 0 {
 		fmt.Println("Error cleaning up:", errno)
 	}
-	fmt.Println("Cleanup completed successfully.")
 }

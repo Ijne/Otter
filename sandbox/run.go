@@ -145,17 +145,13 @@ func copySelfDependencies(rootfs string) error {
 }
 
 func prepareRootFS(rootfs string) error {
-	fmt.Println("Preparing root filesystem at:", rootfs)
-
 	dirs := []string{"bin", "proc", "oldroot", "dev", "tmp"}
 	for _, d := range dirs {
 		if err := os.MkdirAll(filepath.Join(rootfs, d), 0755); err != nil {
 			return err
 		}
 	}
-	fmt.Println("Directories created successfully.")
 
-	fmt.Println("Copying self binary to root filesystem...")
 	if err := copySelfBinary(rootfs); err != nil {
 		fmt.Println("Error copying self binary:", err)
 		return err
@@ -164,7 +160,6 @@ func prepareRootFS(rootfs string) error {
 		fmt.Println("Error copying self dependencies:", err)
 		return err
 	}
-	fmt.Println("Self binary copied successfully.")
 
 	return nil
 }
@@ -196,9 +191,7 @@ func Run(cfg Config) *Result {
 }
 
 func Register(name string, fn func()) {
-	fmt.Println("Registering function:", name)
 	registry[name] = fn
-	fmt.Println("Function registered successfully.")
 }
 
 func Boot() {
@@ -206,12 +199,10 @@ func Boot() {
 	if name == "" {
 		return
 	}
-	fmt.Println("Re-executing started")
 	fn, ok := registry[name]
 	if !ok {
 		os.Exit(127)
 	}
-	fmt.Println("Re-executing finished")
 	fn()
 	os.Exit(0)
 }
