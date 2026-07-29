@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -156,23 +155,6 @@ func prepareRootFS(rootfs string) error {
 	}
 	fmt.Println("Directories created successfully.")
 
-	busyboxPath := filepath.Join(rootfs, "bin", "busybox")
-	if err := downloadFile("https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox", busyboxPath); err != nil {
-		return err
-	}
-	if err := os.Chmod(busyboxPath, 0755); err != nil {
-		return err
-	}
-
-	links := []string{"sh", "ls", "ps", "mount", "cat", "id", "echo", "clear"}
-	for _, name := range links {
-		target := filepath.Join(rootfs, "bin", name)
-		os.Remove(target)
-		if err := os.Symlink("busybox", target); err != nil {
-			return err
-		}
-	}
-
 	fmt.Println("Copying self binary to root filesystem...")
 	if err := copySelfBinary(rootfs); err != nil {
 		fmt.Println("Error copying self binary:", err)
@@ -187,29 +169,12 @@ func prepareRootFS(rootfs string) error {
 	return nil
 }
 
-func downloadFile(url, dest string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	out, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	return err
-}
-
 func Run(cfg Config) *Result {
 	prepareRootFS(cfg.RootFS)
 
 	p := params.Params{
 		EntryPoint:  cfg.EntryPoint,
-		Flags:       uintptr(syscall.CLONE_NEWUSER | syscall.CLONE_NEWUTS | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID | syscall.CLONE_NEWIPC | syscall.CLONE_NEWCGROUP | syscall.SIGCHLD),
+		Flags:       uintptr(syscall.CLONE_NEWUSER | syscall.CLONE_NEWUTS | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID | syscall.CLONE_NEWIPC | syscall.CLONE_NEWCGROUP | syscall.CLONE_NEWNET | syscall.SIGCHLD),
 		RootFS:      cfg.RootFS,
 		MemoryLimit: cfg.MemoryLimit,
 		CPUQuota:    cfg.CPUQuota,
