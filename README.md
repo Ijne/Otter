@@ -147,6 +147,5 @@ Otter/
 - **Rootless mode** — some operations (`CLONE_NEWPID`+`mount proc`, top-level cgroups) currently require root. Delegated, unprivileged cgroups and a user-namespace-only mode are planned.
 - **stderr** is not captured separately from stdout yet.
 
-## Status
-
-A pet project under active development. Built from scratch on raw syscalls as a way to learn exactly what happens under the hood of Docker/runc.
+## License
+MIT © Ijne
